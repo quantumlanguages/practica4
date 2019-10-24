@@ -1,35 +1,43 @@
+{--
+Practica 4
+El lenguaje MiniHS (EAB extendido con cáculo lambda). Sintaxis
+Autores:
+Edgar Quiroz Castañeda
+Sandra del Mar Soto Corderi
+--}
+
 module BAE.Static where
 
   import qualified Data.List as List
-  import BAE.Type.Type as Type
-  import qualified BAE.Unifier as Unifier
-  import qualified BAE.Sintax as Sintax
+  import BAE.Type.Type as Type.Type
+  import BAE.Unifier as Unifier
+  import  BAE.Sintax as Sintax
 
-  type Ctxt = [(Sintax.Identifier, Type)]
+  type Ctxt = [(Sintax.Identifier, Type.Type)]
 
-  subst :: Ctxt -> Type.Substitution -> Ctxt
+  subst :: Ctxt -> Type.Type.Substitution -> Ctxt
   subst [] _ = []
-  subst ((x, t): cs) s = (x, Type.subst t s) : substCtxt cs s
+  subst ((x, t): cs) s = (x, Type.Type.subst t s) : substCtxt cs s
 
-  find :: Sintax.Identifier -> Ctxt -> Maybe Type
+  find :: Sintax.Identifier -> Ctxt -> Maybe Type.Type
   find _ [] = Nothing
   find x ((y, t) : cs) if x == y then
                           Just t
                        else
                           find x cs
 
-  type Constraint = [[Type, Type]]
+  type Constraint = [[Type.Type, Type.Type]]
 
-  fresh' :: Type -> [Type] -> Type
+  fresh' :: Type.Type -> [Type.Type] -> Type.Type
   fresh' (T n) v = if List.elem (T n) vars v then
                         fresh' (T (succ n)) v
                       else
                         (T n)
 
-  fresh :: [Type] -> Type
+  fresh :: [Type.Type] -> Type.Type
   fresh v = fresh' (T 0) v
 
-  infer' :: ([Type], LC.Expr) -> ([Type], Ctxt, Type, Constraint)
+  infer' :: ([Type.Type], Sintax.Expr) -> ([Type.Type], Ctxt, Type.Type, Constraint)
   infer' (nv (Sintax.V x)) = let t = fresh nv
                                nv' = nv `union` [t]
                         in (nv' ,[(x, t)] ,t , [])
@@ -48,7 +56,7 @@ module BAE.Static where
                                 in
                                     (nv', g1 `List.union` g2, z, r1 `List.union` r2 `Lista.union` s `Lista.union` [(t1, t2 :-> z)]) --items
 
-  infer :: (LC.Expr) -> (Ctxt, Type)
+  infer :: (Sintax.Expr) -> (Ctxt, Type.Type)
   infer e = let (_, g, t, r) = infer' ([], e)
                 umg = Unifier.µ r
             in

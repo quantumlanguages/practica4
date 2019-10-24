@@ -1,4 +1,12 @@
-module Type (
+{--
+Practica 4
+El lenguaje MiniHS (EAB extendido con cáculo lambda). Sintaxis
+Autores:
+Edgar Quiroz Castañeda
+Sandra del Mar Soto Corderi
+--}
+
+module BAE.Type (
   Type, Identifier,
   vars, subst, comp, simpl
 ) where

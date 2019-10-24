@@ -4,23 +4,11 @@ import BAE.Sintax as Sintax
 import Data.List
 import System.Environment
 
--- Combinador Y
-fix :: Sintax.Expr
-fix = Sintax.Fn "f" (Sintax.App r r) 
-        where r = (Sintax.Fn "x" 
-                    (Sintax.App 
-                      (Sintax.V "f") 
-                      (Sintax.App 
-                        (Sintax.V "x") 
-                        (Sintax.V "x")
-                      )
-                    )
-                  )
-
 parserExprToExpr :: Parser.Expr -> Sintax.Expr
 parserExprToExpr (Parser.V n) = Sintax.V n
 parserExprToExpr (Parser.I x) = Sintax.I (fromIntegral x)
 parserExprToExpr (Parser.B b) = Sintax.B b
+parserExprToExpr (Parser.RecurFn f x e) = Sintax.Fix f (Fn x (parserExprToExpr))
 parserExprToExpr (UnaryE Parser.Not e) = Sintax.Not (parserExprToExpr e)
 parserExprToExpr (UnaryE Parser.Succ e) = Sintax.Succ (parserExprToExpr e)
 parserExprToExpr (UnaryE Parser.Pred e) = Sintax.Pred (parserExprToExpr e)
@@ -52,8 +40,5 @@ main = do
       putStrLn "Program:"
       putStrLn $ " ⊢ " ++ (show e) ++ " : " ++ (show t)
       putStrLn "Evaluation:"
-      -- putStrLn $ show (eval e t)
-      -- POR AHORA NO VERIFICA EL TIPADO.
-      putStrLn $ show (evale e)
-      -- -- -- -- -- -- -- -- -- -- -- --
+      putStrLn $ show (eval e t)
     _ -> putStrLn "Error: Invalid file name."

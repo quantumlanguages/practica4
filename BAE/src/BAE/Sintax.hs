@@ -1,10 +1,12 @@
 {--
-Practica 3
+Practica 4
 El lenguaje MiniHS (EAB extendido con cáculo lambda). Sintaxis
 Autores:
 Edgar Quiroz Castañeda
 Sandra del Mar Soto Corderi
 --}
+
+--Agregado el Fix y alphaEq
 
 module BAE.Sintax where
 
@@ -109,9 +111,12 @@ module BAE.Sintax where
             Let x e1 e2 ->
                 let x' = safeName x e2; e2' = subst e2 (x, V x') in
                     Let x' e1 e2'
-            Fn x e1 ->
-                let x' = safeName x e1; e1' = subst e1 (x, V x') in
-                    Fn x' e1'
+            Fn x e ->
+                let x' = safeName x e; e' = subst e (x, V x') in
+                    Fn x' e'
+            Fix x e ->
+                let x' = safeName x e; e' = subst e (x, V x') in
+                    Fix x' e'
             _ -> e
 
 
@@ -148,3 +153,25 @@ module BAE.Sintax where
                     else Fn x (st e)
             (App e f) -> App (st e) (st f)
         where st = (flip subst) s
+
+      -- | Dice si dos expresiones son alpha equivalentes
+      alphaEq :: Expr -> Expr -> Bool
+      alphaEq (V x) (V y) = x == y
+      alphaEq (I x) (I y) = x == y
+      alphaEq (B x) (B y) = x == y
+      alphaEq (Fn x e1) (Fn y e2) = alphaEq e1 (subst e2 (y, V x))
+      alphaEq (Fix x1 e1) (Fix x2 e2) = alphaEq e1 (subst e2 (y, V x))
+      alphaEq (Add e11 e12) (Add e21 e22) = (alphaEq e11 e21) && (alphaEq e12 e22)
+      alphaEq (Mul e11 e12) (Mul e21 e22) = (alphaEq e11 e21) && (alphaEq e12 e22)
+      alphaEq (Succ e1) (Succ e2) = (alphaEq e1 e2)
+      alphaEq (Pred e1) (Pred e2) = (alphaEq e1 e2)
+      alphaEq (Not e1) (Not e2) = (alphaEq e1 e2)
+      alphaEq (And e11 e12) (And e21 e22) = (alphaEq e11 e21) && (alphaEq e12 e22)
+      alphaEq (Or e11 e12) (Or e21 e22) = (alphaEq e11 e21) && (alphaEq e12 e22)
+      alphaEq (Lt e11 e12) (Lt e21 e22) = (alphaEq e11 e21) && (alphaEq e12 e22)
+      alphaEq (Gt e11 e12) (Gt e21 e22) = (alphaEq e11 e21) && (alphaEq e12 e22)
+      alphaEq (Eq e11 e12) (Eq e21 e22) = (alphaEq e11 e21) && (alphaEq e12 e22)
+      alphaEq (App e11 e12) (App e21 e22) = (alphaEq e11 e21) && (alphaEq e12 e22)
+      alphaEq (If e1c e11 e12) (If e2c e21 e22) = (alphaEq e1c e2c) && (alphaEq e11 e21) && (alphaEq e12 e22)
+      alphaEq (Let x e11 e12) (Let y e21 e22) = (alphaEq e11 e21) && (alphaEq e12 (subst e21 (y, V x)))
+      alphaEq _ _ = False

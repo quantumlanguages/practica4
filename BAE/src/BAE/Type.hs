@@ -1,46 +1,54 @@
 {--
 Practica 4
-El lenguaje MiniHS (EAB extendido con cáculo lambda). Sintaxis
+El lenguaje MiniHS (EAB extendido con cáculo lambda).
+Módulo para definición y manejo de tipos.
 Autores:
 Edgar Quiroz Castañeda
 Sandra del Mar Soto Corderi
 --}
 
-module BAE.Type (
-  Type, Identifier,
-  vars, subst, comp, simpl
-) where
+module BAE.Type where
 
   import qualified Data.List as List
 
+  -- | Se extiende la categoría de tipos.
   type Identifier = Int
   infix :->
 
   data Type = T Identifier
        | Integer | Boolean
        | Type :-> Type deriving (Show, Eq)
+       
+  type Substitution = [(Identifier, Type)]
 
+  -- | Devuelve el conjunto de variables de tipo
   vars :: Type -> [Identifier]
   vars (T t) = [t]
   vars (t1 :-> t2) = List.union (vars t1) (vars t2)
-
-  type Substitution = [(Identifier, Type)]
-
+  vars _ = []
+  
+  -- | Aplica la sustitución a un tipo dado
   subst :: Type -> Substitution -> Type
-  subst (T t) s = case s of
-                    []           -> T t
-                    ((x, t'): ss) -> if x == t then
-                                      t'
-                                     else
-                                      subst (T t) ss
+  subst e@(T t) s = 
+    case s of
+      [] -> e
+      ((x, t'): ss) -> 
+        if x == t then t' else subst e ss
   subst (t1 :-> t2) s = (subst t1 s) :-> (subst t2 s)
+  subst t _ = t
 
+  -- | Realiza la composición de dos sustituciones
   comp :: Substitution -> Substitution -> Substitution
-  comp s1 s2 = [(x, subst t s2) | (x, t) <- s1] `List.union` [(x, t) | (x, t) <- s2, List.notElem x [y | (y, t) <- s1]]
+  comp s1 s2 = 
+    List.union
+    [(x, subst t s2) | (x, t) <- s1] 
+    [(x, t) | (x, t) <- s2, List.notElem x [y | (y, _) <- s1]]
 
+  -- | Elimina sustituciones redundantes
   simpl:: Substitution -> Substitution
-  simpl s = filter filterS s
+  simpl s = filter redundant s
 
-  filterS :: (Identifier, Type) -> Bool
-  filterS (i, T t) = i /= t
-  filterS _ = True
+  -- | Verifica si una tupla de una sustitución es reduntante. Auxiliar.
+  redundant :: (Identifier, Type) -> Bool
+  redundant (i, T t) = i /= t
+  redundant _ = True

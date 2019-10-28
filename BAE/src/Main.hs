@@ -8,7 +8,6 @@ parserExprToExpr :: Parser.Expr -> Sintax.Expr
 parserExprToExpr (Parser.V n) = Sintax.V n
 parserExprToExpr (Parser.I x) = Sintax.I (fromIntegral x)
 parserExprToExpr (Parser.B b) = Sintax.B b
-parserExprToExpr (Parser.RecurFn f x e) = Sintax.Fix f (Fn x (parserExprToExpr))
 parserExprToExpr (UnaryE Parser.Not e) = Sintax.Not (parserExprToExpr e)
 parserExprToExpr (UnaryE Parser.Succ e) = Sintax.Succ (parserExprToExpr e)
 parserExprToExpr (UnaryE Parser.Pred e) = Sintax.Pred (parserExprToExpr e)
@@ -23,7 +22,7 @@ parserExprToExpr (RelationalE Parser.Eq e1 e2) = Sintax.Eq (parserExprToExpr e1)
 parserExprToExpr (Parser.If e1 e2 e3) = Sintax.If (parserExprToExpr e1) (parserExprToExpr e2) (parserExprToExpr e3)
 parserExprToExpr (Parser.Let x e1 e2) = Sintax.Let x (parserExprToExpr e1) (parserExprToExpr e2)
 parserExprToExpr (Parser.Fn f e) = Sintax.Fn f (parserExprToExpr e)
-parserExprToExpr (Parser.RecurFn f x e) = Sintax.App fix (Sintax.Fn f (Sintax.Fn x (parserExprToExpr e)))
+parserExprToExpr (Parser.RecurFn f x e) = Sintax.Fix f (Sintax.Fn x (parserExprToExpr e))
 
 parserTypeToType :: Parser.Type -> Semantic.Type
 parserTypeToType (Parser.Integer) = Semantic.Integer

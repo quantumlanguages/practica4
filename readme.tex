@@ -1,0 +1,432 @@
+% type
+\documentclass{article}
+
+% greek characters (among others)
+\usepackage[T1]{fontenc}
+
+% format
+\usepackage[letterpaper, margin=1.5cm]{geometry}
+
+% font
+\renewcommand{\familydefault}{\sfdefault}
+
+% code
+\usepackage{minted}
+\usemintedstyle{emacs}
+
+% some math utils
+\usepackage{amsmath}
+
+% header
+\title{
+    Práctica 4 \\
+    Inferencia de tipos
+}
+
+\author{
+    Sandra del Mar Soto Corderi \\
+    Edgar Quiroz Castañeda
+}
+
+\begin{document}
+    \maketitle
+
+    \section{Desarrollo}
+
+    \subsection{Tipos}
+
+    Lo relacionado al módulo \texttt{Type}. La creación de los tipos y los alias de tipos fue directa.
+
+    \begin{minted}{haskell}
+        -- | Se extiende la categoría de tipos.
+        type Identifier = Int
+        infix :->
+
+        data Type = T Identifier
+            | Integer | Boolean
+            | Type :-> Type deriving (Show, Eq)
+            
+        type Substitution = [(Identifier, Type)]
+    \end{minted}
+
+    \subsubsection{\texttt{vars}}
+
+    El tipo \texttt{Type} es un tipo inductivo. Así que la función se definió
+    recursivamente.
+    Simplemente, si se tiene una variable, se agrega al conjunto de variables.
+    Si se tiene un tipo concreto (\texttt{Boolean, Integer}), no se hace nada.
+    Si se tiene una función, se hace recursión sobre las subestrucutras.
+
+    \begin{minted}{haskell}
+        -- | Devuelve el conjunto de variables de tipo
+        vars :: Type -> [Identifier]
+        vars (T t) = [t]
+        vars (t1 :-> t2) = List.union (vars t1) (vars t2)
+        vars _ = []
+    \end{minted}
+
+    \subsubsection{\texttt{subst}}
+
+    En este caso hay que hacer una doble inducción sobre la sustitución (que es
+    una lista) y el tipo.
+
+    Primero se hace recursión sobre el tipo.
+    Usando el mismo principio inductivo, si se tiene una variable, entonces se
+    busca en la sustitución.
+    Si se tiene un tipo concreto, no se hace nada.
+    Si se tiene una función, se hace recursión.
+
+    Luego, cuando se tiene una variable de tipo, se busca la variable
+    recursivamente en la sustitución.
+
+    \begin{minted}{haskell}
+        -- | Aplica la sustitución a un tipo dado
+        subst :: Type -> Substitution -> Type
+        subst e@(T t) s = 
+            case s of
+            [] -> e
+            ((x, t'): ss) -> 
+                if x == t then t' else subst e ss
+        subst (t1 :-> t2) s = (subst t1 s) :-> (subst t2 s)
+        subst t _ = t
+    \end{minted}
+
+    \subsubsection{\texttt{comp}}
+
+    Traducción literal de la definición de composición de sustituciones.
+
+    Esto es, que $\sigma \circ \rho$ corresponde a
+    
+    \[
+        (\sigma \circ \rho)(x) = 
+        \begin{cases}
+            \rho (\sigma (x)) \text{ si }  x \in dom(\sigma) \\
+            \rho (x) \text{ en otro caso }
+        \end{cases}
+    \]
+
+    Si se piensa en las sustituciones como listas (como en nuestra
+    implementación) entonces esto corresponde a
+
+    \begin{itemize}
+        \item Remplazar cada tupla $(x, e) \in \sigma$ por $(x, e_{\rho})$
+        \item Añadir las tuplas de $\rho$ cuyas variables no estaban definidas
+        para $\sigma$.
+    \end{itemize}
+
+    En código esto sería
+
+    \begin{minted}{haskell}
+        -- | Realiza la composición de dos sustituciones
+        comp :: Substitution -> Substitution -> Substitution
+        comp s1 s2 = 
+            List.union
+            [(x, subst t s2) | (x, t) <- s1] 
+            [(x, t) | (x, t) <- s2, List.notElem x [y | (y, _) <- s1]]
+    \end{minted}
+
+    \subsubsection{\texttt{simpl}}
+
+    Para esto se definió una función auxiliar \texttt{redundant} que indica si
+    una sustitución es redundante.
+
+    Entonces, para quitar sustituciones redundantes sólo hay que aplicar un
+    filtro usando esta función.
+
+    \begin{minted}{haskell}
+        -- | Elimina sustituciones redundantes
+        simpl:: Substitution -> Substitution
+        simpl s = filter (\x -> not (redundant x)) s
+      
+        -- | Verifica si una tupla de una sustitución es reduntante. Auxiliar.
+        redundant :: (Identifier, Type) -> Bool
+        redundant (i, T t) = i == t
+        redundant _ = False
+    \end{minted}
+
+    \subsection{Inferencia}
+    
+    Lo relacionado al módulo \texttt{Static}. Los tipos y alias utilizados se
+    crearon tal cuál se especificó en la descripción de la práctica.
+
+    \begin{minted}{haskell}
+        -- | Definiendo el contexto para tipos de variables
+        type Ctxt = [(Sintax.Identifier, Type.Type)] 
+
+        -- | Definiendo las restricciones para inferir los tipos
+        type Constraint = [(Type.Type, Type.Type)]
+    \end{minted}
+
+    \subsubsection{\texttt{subst}}
+
+    Únicamente se realizó la sustitución sobre cada una de las tuplas del
+    contexto usando la función \texttt{Type.subst} definida anteriormente.
+
+    \begin{minted}{haskell}
+        -- | Realiza sustituciones de variables de tipo
+        subst :: Ctxt -> Type.Substitution -> Ctxt
+        subst [] _ = []
+        subst ((x, t): cs) s = (x, Type.subst t s) : subst cs s
+    \end{minted}
+
+    \subsubsection{\texttt{find}}
+
+    Se realiza la búsqueda recusrivamente sobre el contexto. De no encontrar
+    nada, se regresa \texttt{Nothing}.
+
+    \begin{minted}{haskell}
+        -- | Busca el tipo de una variable en un contexto
+        find :: Sintax.Identifier -> Ctxt -> Maybe Type.Type
+        find _ [] = Nothing
+        find x ((y, t) : cs) = 
+            if x == y 
+            then Just t
+            else find x cs
+    \end{minted}
+
+    \subsubsection{\texttt{fresh}}
+
+    Para esto, se usó la función \texttt{Type.vars} que regresa los
+    identificadores de las variables en una expresión.
+
+    De entre ellos, se obtuvo el más grande, y se sumó uno para obtener un
+    identificador que no estaba presente en ese conjunto.
+
+    \begin{minted}{haskell}
+        -- | Obtiene una variable que no figure en la lista
+        fresh :: [Type.Type] -> Type.Type
+        fresh s = 
+            Type.T ((foldl max 0 (foldr (\ x y -> List.union (Type.vars x) y) [] s)) + 1)
+    \end{minted}
+
+    \subsubsection{\texttt{infer'}}
+
+    Como está especificado en la descripción de la práctica, esta función está
+    dividida en seis partes principales, cada una expresada con un juicio.
+
+    Cada parte está compuesta por varias instancias de la regla correspondiente.
+    Al ser todos los casos análogos, sólo se va a describir el caso general de
+    cada sección.
+
+    \begin{itemize}
+        \item Variables
+
+        Se obtiene un nuevo tipo para la variable, la cuál se agrega al catálogo
+        de variables, así como al contexto. 
+        
+        Y se añade un conjunto de restricciones vacío.
+
+        \begin{minted}{haskell}
+            -- varialbles
+            infer' (nv, (Sintax.V x)) = 
+                let t = fresh nv; nv' = nv `List.union` [t]
+                    in (nv' ,[(x, t)] ,t , [])
+        \end{minted}
+
+        \item Constantes
+
+        Sólo se da directamente el tipo. No se modificada nada más.
+
+        \begin{minted}{haskell}
+            -- T
+            infer' (nv, (Sintax.T e)) = (nv, [], Type.T, [])
+        \end{minted}
+
+        \item Funciones
+
+        Primero, es necesario tener el tipo, el contexto, las restricciones y el
+        catálogo de tipos del cuerpo de la función. Esto se logra con una
+        llamada recursiva.
+
+        Luego, se necesita el tipo de la variable ligada.
+        
+        Si está en el cuerpo, entonces su tipo está en el contexto. Así que sólo
+        hay que buscarlo y borrarlo. 
+        
+        Si no figuraba en el cuerpo, entonces no estará en el contexto. Así que
+        habrá que crear un nuevo tipo, y agregarlo al catálogo de tipos. No se 
+        debe modificar nada más.
+
+        En ambos casos, el tipo de la función es un tipo función que recibe el
+        tipo de la variable ligada y regresa el tipo del cuerpo de la función.
+
+        \begin{minted}{haskell}
+            -- functions
+            infer' (nv, (Sintax.Fn x e)) = 
+            let (nv', g, t, r) = infer' (nv, e)
+                in case find x g of
+                    Just t' -> (nv', filter (\(i, t) -> i /= x) g, t' Type.:-> t, r)
+                    Nothing -> 
+                    let t' = fresh nv'; nv'' = nv' `List.union` [t']
+                        in (nv'', g, t' Type.:-> t, r)
+        \end{minted}
+
+        \item Operadores
+
+        Primero, se necesita el tipo, restricciones, contexto y catálogo de tipo
+        de los operados, así como el tipo que regresa la operación.
+
+        Y se debe agregar a las restricciones que todos los diferentes tipos que 
+        pueda tener una variable en realidad son el mismo.
+
+        El catálogo de tipos es la unión de los catálogos. El contexto en la
+        unión de los contextos. Las restricciones son la unión de las
+        restricciones, pero además hay que agregar que todos los operandos son
+        del tipo requerido.
+
+        Entonces, si se tienen $e_1, \dots, e_n$ operandos y una función $F$ que
+        regresa un tipo $T$ y que recibe $n$ operandos de tipos 
+        $U_1, \dots, U_1$. Entonces, el código para procesar esta función es 
+
+        \begin{minted}{haskell}
+            -- op
+            infer' (nv, (Sintax.T e1 ... en)) = 
+                let (nv1, g1, t1, r1) = infer' (nv, e1);
+                    ...;
+                    (nvn, gn, tn, rn) = infer' (nv{n-1}, en);
+                    s = [(s1, s2) | (x, s1) <- g1, (y, s2) <- g2, x == y]
+                    `List.union`
+                        ...
+                    `List.union`
+                        [(s{n-1}, sn) | (x, s{n-1}) <- g{n-1}, (y, sn) <- gn, x == y];
+                    in (
+                        nvn, 
+                        g1 `List.union` ... `List.union` gn, 
+                        T, 
+                        r1 `List.union` ... `List.union` rn `List.union` s 
+                        `List.union` [(t1, U1), ..., (tn, Un)]
+                        )
+        \end{minted}
+
+        Hay que notar que se está omitiendo conseguir los tipo $T$ y $U_i$, lo
+        cuál varia según el operador particular. 
+
+        \item Aplicaciones
+
+        Se requiere toda la información de las dos subexpresiones, lo cuál se
+        obtiene con llamadas recursivas.
+
+        Como en la mayoría de los casos, hay que añadir como restricciones que
+        todos los posibles tipos de una variable son en realidad el mismo.
+
+        Se requiere un nuevo tipo que represente el tipo que regresa la
+        aplicación.
+
+        Y finalmente, como restricción extra hay que añadir que el tipo de la
+        expresión a la izquierda sea un tipo función que tomo el tipo de la
+        expresión a la derecha y regresa el tipo de la aplicación.
+
+        \begin{minted}{haskell}
+            infer' (nv, (Sintax.App e1 e2)) = 
+            let (nv1, g1, t1, r1) = infer' (nv, e1);
+                (nv2, g2, t2, r2) = infer' (nv1, e2);
+                s = [(s1, s2) | (x, s1) <- g1, (y, s2) <- g2, x == y];
+                z = fresh nv2; --item para operadores
+                nv' = nv2 `List.union` [z]
+                in (
+                    nv', 
+                    g1 `List.union` g2, 
+                    z, 
+                    r1 `List.union` r2 `List.union` s `List.union` [(t1, t2 Type.:-> z)
+                    )
+        \end{minted}
+
+        \item Ligado de variables
+
+        Es similar al procesamiento de funciones.
+
+        Sólo que hay que tomar en cuenta dos subexpresiones en lugar de una.
+
+        \begin{minted}{haskell}
+            infer' (nv, (Sintax.Let x e1 e2)) = 
+            let (nv1, g1, t1, r1) = infer' (nv, e1);
+                (nv2, g2, t2, r2) = infer' (nv1, e2);
+                (nv3, g3, t3) =
+                case find x g2 of
+                    Just t' -> (nv2, filter (\(i, t) -> i /= x) g2, t')
+                    Nothing -> (nv2 `List.union` [t'], g2, t') where t' = fresh nv2;
+                s = [(s1, s3) | (x, s1) <- g1, (y, s3) <- g3, x == y];
+                in (
+                    nv3, 
+                    g1 `List.union` g3, 
+                    t2, 
+                    r1 `List.union` r2 `List.union` s `List.union` [(t1, t3)]
+                    )
+        \end{minted}
+    \end{itemize}
+
+    \subsubsection{\texttt{infer}}
+
+    Usando \texttt{infer'}, se obtiene el tipo sin restricciones, las
+    restricciones y el contexto.
+
+    Usando la función \texttt{Unifier.µ}, se intenta unificar las restricciones.
+
+    Si esto se logra, se aplica el unificador tanto al contexto como al tipo de
+    la expresión, que es lo que regresa la función.
+
+    \begin{minted}{haskell}
+        infer :: (Sintax.Expr) -> (Ctxt, Type.Type)
+        infer e = 
+            let (_, g, t, r) = infer' ([], e); umg = Unifier.µ r
+            in (subst g (head umg), Type.subst t (head umg))
+    \end{minted}
+
+
+    \subsection{Integración}
+
+    \subsubsection{Modificaciones a \texttt{Semantic}}
+
+    Parte de la funcionanlidad que se añadió antes pertenecía al este módulo.
+    Así que fue necesario partirlo en tres partes. Los módulos \texttt{Static},
+    \texttt{Dynamic} y \texttt{Type}.
+
+    Y se convirtió al módulo \texttt{Semantic} en una especie de proxy cuya
+    única función es envolver estos tres módulos para no tener que realizar
+    modificaciones ni a \texttt{Parser} ni a \texttt{Main}.
+
+    Tanto \texttt{Static} como \texttt{Type} son el tema de la sección anterior.
+
+    Así que sólo falta discutir \texttt{Dynamic}.
+
+    Ahí se guardaron todas las funciones para evaluar expresiones. En estas, se
+    tuvo que añadir el caso para el operador \texttt{Fix}, que anteriormente no
+    era parte del lenguaje.
+
+    Incluyendo aquellas que hacían uso del análisis estático para revisar los
+    tipos antes de realizar la evaluación. Por lo que \texttt{Dynamic} hace uso
+    de \texttt{Static}.
+
+    \subsubsection{Modificaciones a \texttt{Sintax}}
+
+    Únicamente se agregaron los casos necesarios para \texttt{Fix}.
+
+    \subsubsection{Modificaciones a \texttt{Main}}
+
+    Al tener \texttt{Type} y \texttt{Static} funciones con el mismo nombre, al
+    ser envueltas en \texttt{Semantic} tuvieron que ser importados de manera
+    calificada.
+
+    Así que al usar recursos de este módulo en \texttt{Main}, hubo que envolver
+    los nombres.
+
+    \section{Dificultades}
+
+    La única gran dificultad fue la parte del algoritmo de inferencia de tipos
+    que teníamos que implementar.
+
+    \subsection{\texttt{infer'}}
+
+    Hubo que tener mucho cuidado con el manejo de los contextos en las funciones
+    y con el operador \texttt{let}.
+
+    Además, encontrar al manera adecuada de procesar el operador \texttt{if} fue
+    tardado, al no haber un ejemplo sobre operadores ternarios en la descripción
+    de la práctica.
+
+    Además, surgió el inconveniente que es posible tener varios tipos para una
+    misma variable en un mismo contexto, así que para borrarla no siempre bastaba
+    con eliminar la primera aparición.
+
+
+\end{document}

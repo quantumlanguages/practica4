@@ -46,9 +46,9 @@ module BAE.Type where
 
   -- | Elimina sustituciones redundantes
   simpl:: Substitution -> Substitution
-  simpl s = filter redundant s
+  simpl s = filter (\x -> not (redundant x)) s
 
   -- | Verifica si una tupla de una sustitución es reduntante. Auxiliar.
   redundant :: (Identifier, Type) -> Bool
-  redundant (i, T t) = i /= t
-  redundant _ = True
+  redundant (i, T t) = i == t
+  redundant _ = False

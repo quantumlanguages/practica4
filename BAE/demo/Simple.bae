@@ -1,0 +1,5 @@
+let x1 := 1 in
+    if true 
+        then x1
+        else x1
+end :: Integer
